@@ -377,7 +377,7 @@ body {
       <img id="imagePreviewTarget" alt="预览" />
     </div>
 
-        <!-- Password Gate -->
+        <!-- Password Gate v2 -->
     <style>
       #zapGate{position:fixed;inset:0;background:#f6f7fb;display:flex;align-items:center;justify-content:center;z-index:2147483647;font-family:"PingFang SC","Microsoft YaHei",system-ui,-apple-system,sans-serif}
       #zapGate .box{background:#fff;border-radius:16px;box-shadow:0 12px 30px rgba(15,23,42,.08);padding:32px 36px;width:min(320px,86vw);text-align:center}
@@ -390,6 +390,8 @@ body {
       #zapGate .spin{width:28px;height:28px;margin:0 auto 14px;border:3px solid #e5e7eb;border-top-color:#4f46e5;border-radius:50%;animation:zapSpin .8s linear infinite}
       @keyframes zapSpin{to{transform:rotate(360deg)}}
       #zapGate .sub{color:#6b7280;font-size:12px;margin:6px 0 0}
+      #zapPill{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:rgba(17,24,39,.85);color:#fff;font-size:12px;line-height:1;padding:9px 16px;border-radius:999px;z-index:2147483646;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;transition:opacity .6s;pointer-events:none;white-space:nowrap}
+      #zapPill.zap-err{background:#dc2626;pointer-events:auto;cursor:pointer}
     </style>
     <div id="zapGate">
       <div class="box" id="zapLoginBox">
@@ -400,51 +402,88 @@ body {
       </div>
       <div class="box" id="zapLoadBox" style="display:none">
         <div class="spin"></div>
-        <p style="margin:0;font-size:14px;color:#1f2a37">正在加载聊天记录…</p>
-        <p class="sub">数据较大，首次加载可能需要 1~2 分钟</p>
+        <p style="margin:0;font-size:14px;color:#1f2a37">正在加载首屏…</p>
+        <p class="sub">仅首次访问需等待，之后本机缓存秒开</p>
       </div>
     </div>
+    <div id="zapPill" class="zap-pill" style="display:none"></div>
     <script>
       (function () {
-        var FILES = ['data1.js', 'data2.js', 'data3.js', 'data4.js', 'app.js'];
-        var KEY = atob('MTUzNA==');
-        var gate = document.getElementById('zapGate');
-        var loginBox = document.getElementById('zapLoginBox');
-        var loadBox = document.getElementById('zapLoadBox');
-        var pw = document.getElementById('zapPw');
-        var err = document.getElementById('zapErr');
-        function loadSeq(i) {
-          if (i >= FILES.length) { gate.style.display = 'none'; return; }
-          var s = document.createElement('script');
-          s.src = FILES[i];
-          s.async = false;
-          s.onload = function () { loadSeq(i + 1); };
-          s.onerror = function () {
-            loginBox.style.display = 'block';
-            loadBox.style.display = 'none';
-            err.textContent = '资源加载失败：' + FILES[i] + '，请刷新重试';
-          };
-          document.head.appendChild(s);
-        }
-        function startLoading() {
-          loginBox.style.display = 'none';
-          loadBox.style.display = 'block';
-          loadSeq(0);
-        }
-        function unlock() {
-          if (pw.value === KEY) {
-            try { sessionStorage.setItem('zap_ok', '1'); } catch (e) {}
-            startLoading();
-          } else {
-            err.textContent = '密码错误，请重试';
-            pw.value = '';
-            pw.focus();
-          }
-        }
-        document.getElementById('zapGo').addEventListener('click', unlock);
-        pw.addEventListener('keydown', function (e) { if (e.key === 'Enter') unlock(); });
-        try { if (sessionStorage.getItem('zap_ok') === '1') startLoading(); } catch (e) {}
-      })();
+  var TOTAL = 185339;
+  var PREFIX = ['emoji-v2.js', 'd1-v2.js', 'app-v2.js'];
+  var REST = ["d2-v2.js","d3-v2.js","d4-v2.js","d5-v2.js","d6-v2.js","d7-v2.js"];
+  var KEY = atob('MTUzNA==');
+  var gate = document.getElementById('zapGate');
+  var loginBox = document.getElementById('zapLoginBox');
+  var loadBox = document.getElementById('zapLoadBox');
+  var pw = document.getElementById('zapPw');
+  var err = document.getElementById('zapErr');
+  var pill = document.getElementById('zapPill');
+  function fmt(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+  function addScript(src, onload, onerr) {
+    var s = document.createElement('script');
+    s.src = src; s.async = false; s.onload = onload; s.onerror = onerr;
+    document.head.appendChild(s);
+  }
+  function fail(f) {
+    pill.style.display = 'block';
+    pill.className = 'zap-pill zap-err';
+    pill.textContent = '网络中断（' + f + '），点击重试';
+    pill.onclick = function () { location.reload(); };
+  }
+  function afterChunk() {
+    try {
+      var items = window.Z_CHUNK || [];
+      allData = window.WEFLOW_DATA;
+      var q = '';
+      try { q = (searchInput.value || '').trim(); } catch (e) {}
+      if (!q) { currentList = allData; renderer.appendData(items); }
+      updateCount();
+    } catch (e) {}
+    pill.textContent = '后台同步中 · ' + fmt(window.WEFLOW_DATA.length) + ' / ' + fmt(TOTAL) + ' 条';
+  }
+  function startLoading() {
+    loginBox.style.display = 'none';
+    loadBox.style.display = 'block';
+    if ('serviceWorker' in navigator) {
+      try { navigator.serviceWorker.register('sw.js').catch(function () {}); } catch (e) {}
+    }
+    var i = 0;
+    (function next() {
+      if (i >= PREFIX.length) {
+        loadBox.style.display = 'none';
+        gate.style.display = 'none';
+        pill.style.display = 'block';
+        pill.textContent = '后台同步中 · ' + fmt(window.WEFLOW_DATA.length) + ' / ' + fmt(TOTAL) + ' 条';
+        REST.forEach(function (f) {
+          addScript(f, function () {
+            afterChunk();
+            if (window.WEFLOW_DATA.length >= TOTAL) {
+              pill.textContent = '已全部加载 · ' + fmt(TOTAL) + ' 条';
+              setTimeout(function () { pill.style.opacity = '0'; }, 2000);
+            }
+          }, function () { fail(f); });
+        });
+        return;
+      }
+      var f = PREFIX[i++];
+      addScript(f, next, function () { fail(f); });
+    })();
+  }
+  function unlock() {
+    if (pw.value === KEY) {
+      try { sessionStorage.setItem('zap_ok', '1'); } catch (e) {}
+      startLoading();
+    } else {
+      err.textContent = '密码错误，请重试';
+      pw.value = '';
+      pw.focus();
+    }
+  }
+  document.getElementById('zapGo').addEventListener('click', unlock);
+  pw.addEventListener('keydown', function (e) { if (e.key === 'Enter') unlock(); });
+  try { if (sessionStorage.getItem('zap_ok') === '1') startLoading(); } catch (e) {}
+})();
     </script>
   </body>
 </html>
